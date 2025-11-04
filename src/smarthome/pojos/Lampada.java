@@ -1,3 +1,5 @@
+package smarthome.pojos;
+
 public class Lampada extends DispositivoIoT {
     private boolean ligada;
     private int intensidade;

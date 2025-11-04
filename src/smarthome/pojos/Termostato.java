@@ -1,3 +1,6 @@
+package smarthome.pojos;
+
+
 public class Termostato extends DispositivoIoT {
     private double temperaturaAtual;
     private double temperaturaDesejada;
@@ -8,7 +11,9 @@ public class Termostato extends DispositivoIoT {
     }
 
     public Termostato(String nome, String comodo, boolean status, double temperaturaAtual, double temperaturaDesejada) {
-        super(nome, null, comodo);
+        // CORREÇÃO 3: Usando 'Termostato' como o tipo/modelo, assumindo que DispositivoIoT
+        // recebe (String nome, String tipo/modelo, String comodo)
+        super(nome, "Termostato", comodo); 
         this.status = status;
         this.temperaturaAtual = temperaturaAtual;
         this.temperaturaDesejada = temperaturaDesejada;

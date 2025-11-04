@@ -1,3 +1,5 @@
+package smarthome.pojos;
+
 public class Fechadura extends DispositivoIoT {
     private boolean bloqueada;
     private int bateria;

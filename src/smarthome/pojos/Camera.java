@@ -1,3 +1,5 @@
+package smarthome.pojos;
+
 public class Camera extends DispositivoIoT {
     private boolean gravando;
     private int qualidade;

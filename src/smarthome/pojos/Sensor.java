@@ -1,3 +1,5 @@
+package smarthome.pojos;
+
 public class Sensor extends DispositivoIoT {
     private String tipo;
     private boolean unidadeMedida;
