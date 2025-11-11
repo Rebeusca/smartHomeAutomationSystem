@@ -3,15 +3,8 @@ package smarthome.net.votacao;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Utilitário simples para serialização/deserialização JSON.
- * Implementação básica sem bibliotecas externas.
- */
 public class VotacaoJsonSerializer {
     
-    /**
-     * Serializa lista de candidatos para JSON.
-     */
     public static String candidatosToJson(List<Candidato> candidatos) {
         if (candidatos == null || candidatos.isEmpty()) {
             return "[]";
@@ -34,16 +27,12 @@ public class VotacaoJsonSerializer {
         return sb.toString();
     }
     
-    /**
-     * Deserializa JSON para lista de candidatos.
-     */
     public static List<Candidato> jsonToCandidatos(String json) {
         List<Candidato> candidatos = new ArrayList<>();
         if (json == null || json.trim().isEmpty() || json.equals("[]")) {
             return candidatos;
         }
         
-        // Parse simples: {"id":"...","nome":"...","votos":N}
         json = json.trim();
         if (json.startsWith("[")) {
             json = json.substring(1, json.length() - 1);
@@ -86,9 +75,6 @@ public class VotacaoJsonSerializer {
         return candidatos;
     }
     
-    /**
-     * Serializa ResultadoVotacao para JSON.
-     */
     public static String resultadoToJson(ResultadoVotacao resultado) {
         if (resultado == null) {
             return "{}";
@@ -129,9 +115,6 @@ public class VotacaoJsonSerializer {
         return sb.toString();
     }
     
-    /**
-     * Parse simples de JSON de login: {"username":"...","senha":"..."}
-     */
     public static String[] parseLoginJson(String json) {
         String username = null, senha = null;
         
@@ -157,9 +140,26 @@ public class VotacaoJsonSerializer {
         return new String[]{username, senha};
     }
     
-    /**
-     * Parse simples de JSON de voto: {"candidatoId":"..."}
-     */
+    public static String parseUsernameJson(String json) {
+        if (json != null && !json.trim().isEmpty()) {
+            json = json.replace("{", "").replace("}", "").trim();
+            String[] campos = json.split(",");
+            
+            for (String campo : campos) {
+                String[] kv = campo.split(":");
+                if (kv.length == 2) {
+                    String key = kv[0].trim().replace("\"", "");
+                    String value = kv[1].trim().replace("\"", "");
+                    
+                    if (key.equals("username")) {
+                        return value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    
     public static String parseVotoJson(String json) {
         if (json != null && !json.trim().isEmpty()) {
             json = json.replace("{", "").replace("}", "").trim();
@@ -180,9 +180,6 @@ public class VotacaoJsonSerializer {
         return null;
     }
     
-    /**
-     * Parse simples de JSON de candidato: {"id":"...","nome":"..."}
-     */
     public static String[] parseCandidatoJson(String json) {
         String id = null, nome = null;
         
@@ -208,9 +205,30 @@ public class VotacaoJsonSerializer {
         return new String[]{id, nome};
     }
     
-    /**
-     * Parse simples de JSON de nota: {"titulo":"...","mensagem":"..."}
-     */
+    public static int parseDuracaoJson(String json) {
+        if (json != null && !json.trim().isEmpty()) {
+            json = json.replace("{", "").replace("}", "").trim();
+            String[] campos = json.split(",");
+            
+            for (String campo : campos) {
+                String[] kv = campo.split(":");
+                if (kv.length == 2) {
+                    String key = kv[0].trim().replace("\"", "");
+                    String value = kv[1].trim().replace("\"", "");
+                    
+                    if (key.equals("duracaoMinutos")) {
+                        try {
+                            return Integer.parseInt(value);
+                        } catch (NumberFormatException e) {
+                            return 5;
+                        }
+                    }
+                }
+            }
+        }
+        return 5;
+    }
+    
     public static String[] parseNotaJson(String json) {
         String titulo = null, mensagem = null;
         
@@ -236,9 +254,6 @@ public class VotacaoJsonSerializer {
         return new String[]{titulo, mensagem};
     }
     
-    /**
-     * Deserializa JSON para ResultadoVotacao.
-     */
     public static ResultadoVotacao jsonToResultado(String json) {
         ResultadoVotacao resultado = new ResultadoVotacao();
         
@@ -247,7 +262,6 @@ public class VotacaoJsonSerializer {
         }
         
         try {
-            // Parse simples - extrai valores básicos
             if (json.contains("\"totalVotos\":")) {
                 String[] partes = json.split("\"totalVotos\":");
                 if (partes.length > 1) {
@@ -256,12 +270,10 @@ public class VotacaoJsonSerializer {
                 }
             }
             
-            // Parse de resultados de candidatos
             if (json.contains("\"resultados\":")) {
                 String resultadosStr = json.substring(json.indexOf("\"resultados\":") + 13);
                 resultadosStr = resultadosStr.substring(resultadosStr.indexOf("[") + 1, resultadosStr.lastIndexOf("]"));
                 
-                // Parse cada resultado
                 String[] resultadosArray = resultadosStr.split("\\},\\{");
                 for (String resStr : resultadosArray) {
                     resStr = resStr.replace("{", "").replace("}", "").trim();
@@ -274,7 +286,6 @@ public class VotacaoJsonSerializer {
                     if (!cands.isEmpty()) {
                         Candidato c = cands.get(0);
                         
-                        // Extrai votos e percentual
                         int votos = 0;
                         double percentual = 0.0;
                         
@@ -295,7 +306,6 @@ public class VotacaoJsonSerializer {
                 }
             }
             
-            // Parse do vencedor
             if (json.contains("\"vencedor\":")) {
                 String vencedorStr = json.substring(json.indexOf("\"vencedor\":") + 11);
                 vencedorStr = vencedorStr.substring(0, vencedorStr.indexOf("},") + 1);
@@ -305,16 +315,12 @@ public class VotacaoJsonSerializer {
                 }
             }
         } catch (Exception e) {
-            // Em caso de erro, retorna resultado vazio
             System.err.println("Erro ao parsear resultados: " + e.getMessage());
         }
         
         return resultado;
     }
     
-    /**
-     * Escapa caracteres especiais para JSON.
-     */
     private static String escapeJson(String str) {
         if (str == null) {
             return "";

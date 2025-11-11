@@ -3,10 +3,6 @@ package smarthome.net.votacao;
 import java.io.Serializable;
 import java.util.List;
 
-/**
- * Mensagem de resposta do sistema de votação.
- * Usa JSON para representação externa de dados.
- */
 public class VotacaoReply implements Serializable {
     
     public enum Status {
@@ -41,7 +37,7 @@ public class VotacaoReply implements Serializable {
     
     private Status status;
     private String mensagem;
-    private String dados; // JSON com dados adicionais (candidatos, resultados, etc.)
+    private String dados;
     
     public VotacaoReply() {
     }

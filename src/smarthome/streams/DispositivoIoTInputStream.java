@@ -1,7 +1,9 @@
 package smarthome.streams;
 
 import smarthome.pojos.DispositivoIoT;
-import smarthome.pojos.Lampada; 
+import smarthome.pojos.Lampada;
+import smarthome.pojos.Termostato;
+import smarthome.pojos.Sensor;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -52,27 +54,42 @@ public class DispositivoIoTInputStream extends InputStream {
     private DispositivoIoT readDispositivo() throws IOException {
         // Lógica INVERSA à gravação:
         
-        // Atributo 1: ID (String)
+        // Atributo 1: TIPO (String) - Nome da classe
+        String tipo = readString();
+        
+        // Atributo 2: ID (String)
         String id = readString(); 
         
-        // Atributo 2: NOME (String)
+        // Atributo 3: NOME (String)
         String nome = readString(); 
         
-        // Atributo 3: ONLINE (boolean) - 1 byte
-        boolean online = read() == 1; // Lê 1 byte (1 é true, 0 é false)
+        // Atributo 4: ONLINE (boolean) - 1 byte
+        boolean online = read() == 1;
         
-        // Atributo 4: CÔMODO (String)
+        // Atributo 5: CÔMODO (String)
         String comodo = readString();
         
-        // --- Reconstrução Simples ---
-        // Nota: Como não sabemos qual subclasse (Lampada, Termostato, Sensor) foi enviada,
-        // criamos uma instância genérica (mock) ou uma instância de uma subclasse base,
-        // pois a superclasse DispositivoIoT é abstrata.
+        // Criar instância baseada no tipo
+        DispositivoIoT dispositivo;
         
-        // Para fins de teste, criaremos uma instância de Lampada e setaremos os campos:
-        Lampada dispositivo = new Lampada(nome, comodo, online, false, 0, 0); // Mock
+        switch (tipo) {
+            case "Lampada":
+                dispositivo = new Lampada(nome, comodo, online, false, 0, 0);
+                break;
+            case "Termostato":
+                dispositivo = new Termostato(nome, comodo, false, 0.0, 0.0);
+                dispositivo.setOnline(online);
+                break;
+            case "Sensor":
+                dispositivo = new Sensor(nome, comodo, online, "Desconhecido", false, 0.0);
+                break;
+            default:
+                // Fallback: cria Lampada se tipo desconhecido
+                dispositivo = new Lampada(nome, comodo, online, false, 0, 0);
+                break;
+        }
+        
         dispositivo.setId(id);
-        
         return dispositivo;
     }
     

@@ -8,45 +8,34 @@ import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Servidor de votação multi-threaded.
- * Gerencia login, candidatos, votos e resultados.
- */
 public class ServidorVotacao {
     
     private static final int PORTA_TCP = 54322;
     
-    // Dados compartilhados (thread-safe)
     private final Map<String, Eleitor> eleitores;
     private final Map<String, Candidato> candidatos;
-    private final Map<String, Eleitor> eleitoresLogados; // SessionId -> Eleitor
-    private final Map<String, String> sessionEleitores; // Username -> SessionId
+    private final Map<String, String> sessionEleitores;
     
-    // Estado da votação
     private boolean votacaoIniciada = false;
     private boolean votacaoEncerrada = false;
-    private long prazoFinal = 0; // timestamp
+    private long prazoFinal = 0;
     private final Object lock = new Object();
     
     public ServidorVotacao() {
         this.eleitores = new ConcurrentHashMap<>();
         this.candidatos = new ConcurrentHashMap<>();
-        this.eleitoresLogados = new ConcurrentHashMap<>();
         this.sessionEleitores = new ConcurrentHashMap<>();
         inicializarDados();
     }
     
     private void inicializarDados() {
-        // Cria alguns eleitores de exemplo
         eleitores.put("eleitor1", new Eleitor("eleitor1", "senha1", false));
         eleitores.put("eleitor2", new Eleitor("eleitor2", "senha2", false));
         eleitores.put("eleitor3", new Eleitor("eleitor3", "senha3", false));
         
-        // Cria administradores
         eleitores.put("admin", new Eleitor("admin", "admin123", true));
         eleitores.put("admin2", new Eleitor("admin2", "admin456", true));
         
-        // Cria alguns candidatos iniciais
         candidatos.put("cand1", new Candidato("cand1", "João Silva"));
         candidatos.put("cand2", new Candidato("cand2", "Maria Santos"));
         candidatos.put("cand3", new Candidato("cand3", "Pedro Oliveira"));
@@ -63,7 +52,6 @@ public class ServidorVotacao {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("[CONEXÃO] Cliente conectado: " + clientSocket.getRemoteSocketAddress());
                 
-                // Processa cada cliente em uma thread separada
                 Thread clientThread = new Thread(() -> processarCliente(clientSocket));
                 clientThread.start();
             }
@@ -80,15 +68,12 @@ public class ServidorVotacao {
              VotacaoInputStream in = new VotacaoInputStream(is);
              VotacaoOutputStream out = new VotacaoOutputStream(os)) {
             
-            // Desempacota a mensagem de requisição
             VotacaoRequest request = in.lerRequest();
             System.out.println("[REQUEST] " + request.getTipoOperacao() + " de " + clientSocket.getRemoteSocketAddress());
             
-            // Processa a requisição
             VotacaoReply reply = processarRequest(request, clientSocket.getRemoteSocketAddress().toString());
             System.out.println("[REPLY] " + reply.getStatus());
             
-            // Empacota e envia a resposta
             out.escreverReply(reply);
             
         } catch (IOException e) {
@@ -97,7 +82,6 @@ public class ServidorVotacao {
             try {
                 clientSocket.close();
             } catch (IOException e) {
-                // Ignora
             }
         }
     }
@@ -110,7 +94,7 @@ public class ServidorVotacao {
                         return processarLogin(request, sessionId);
                         
                     case LISTAR_CANDIDATOS:
-                        return processarListarCandidatos(sessionId);
+                        return processarListarCandidatos(request);
                         
                     case VOTAR:
                         return processarVoto(request, sessionId);
@@ -122,13 +106,13 @@ public class ServidorVotacao {
                         return processarRemoverCandidato(request, sessionId);
                         
                     case OBTER_RESULTADOS:
-                        return processarObterResultados(sessionId);
+                        return processarObterResultados(request);
                         
                     case INICIAR_VOTACAO:
                         return processarIniciarVotacao(request, sessionId);
                         
                     case ENCERRAR_VOTACAO:
-                        return processarEncerrarVotacao(sessionId);
+                        return processarEncerrarVotacao(request);
                         
                     default:
                         return new VotacaoReply(VotacaoReply.Status.ERRO, "Operação não suportada");
@@ -137,6 +121,23 @@ public class ServidorVotacao {
         } catch (Exception e) {
             return new VotacaoReply(VotacaoReply.Status.ERRO, "Erro: " + e.getMessage());
         }
+    }
+    
+    private Eleitor obterEleitorPorUsername(String username) {
+        if (username == null) {
+            return null;
+        }
+        
+        if (sessionEleitores.containsKey(username)) {
+            return eleitores.get(username);
+        }
+        
+        return null;
+    }
+    
+    private Eleitor obterEleitorPorRequest(VotacaoRequest request) {
+        String username = VotacaoJsonSerializer.parseUsernameJson(request.getDados());
+        return obterEleitorPorUsername(username);
     }
     
     private VotacaoReply processarLogin(VotacaoRequest request, String sessionId) {
@@ -153,14 +154,6 @@ public class ServidorVotacao {
             return new VotacaoReply(VotacaoReply.Status.LOGIN_INVALIDO, "Usuário ou senha incorretos");
         }
         
-        // Verifica se já está logado em outra sessão
-        String sessaoAnterior = sessionEleitores.get(username);
-        if (sessaoAnterior != null) {
-            eleitoresLogados.remove(sessaoAnterior);
-        }
-        
-        // Cria nova sessão
-        eleitoresLogados.put(sessionId, eleitor);
         sessionEleitores.put(username, sessionId);
         
         String tipoUsuario = eleitor.isAdmin() ? "Administrador" : "Eleitor";
@@ -169,8 +162,8 @@ public class ServidorVotacao {
             "Login realizado com sucesso. Bem-vindo, " + tipoUsuario + "!", dados);
     }
     
-    private VotacaoReply processarListarCandidatos(String sessionId) {
-        Eleitor eleitor = eleitoresLogados.get(sessionId);
+    private VotacaoReply processarListarCandidatos(VotacaoRequest request) {
+        Eleitor eleitor = obterEleitorPorRequest(request);
         if (eleitor == null) {
             return new VotacaoReply(VotacaoReply.Status.NAO_AUTORIZADO, "É necessário fazer login primeiro");
         }
@@ -186,7 +179,6 @@ public class ServidorVotacao {
         }
         
         List<Candidato> lista = new ArrayList<>(candidatos.values());
-        // Remove a contagem de votos para não influenciar a escolha
         List<Candidato> candidatosSemVotos = new ArrayList<>();
         for (Candidato c : lista) {
             Candidato copia = new Candidato(c.getId(), c.getNome());
@@ -198,7 +190,7 @@ public class ServidorVotacao {
     }
     
     private VotacaoReply processarVoto(VotacaoRequest request, String sessionId) {
-        Eleitor eleitor = eleitoresLogados.get(sessionId);
+        Eleitor eleitor = obterEleitorPorRequest(request);
         if (eleitor == null) {
             return new VotacaoReply(VotacaoReply.Status.NAO_AUTORIZADO, "É necessário fazer login primeiro");
         }
@@ -233,7 +225,6 @@ public class ServidorVotacao {
                 "Candidato não encontrado: " + candidatoId);
         }
         
-        // Registra o voto
         candidato.adicionarVoto();
         eleitor.setJaVotou(true);
         
@@ -242,7 +233,7 @@ public class ServidorVotacao {
     }
     
     private VotacaoReply processarAdicionarCandidato(VotacaoRequest request, String sessionId) {
-        Eleitor eleitor = eleitoresLogados.get(sessionId);
+        Eleitor eleitor = obterEleitorPorRequest(request);
         if (eleitor == null || !eleitor.isAdmin()) {
             return new VotacaoReply(VotacaoReply.Status.NAO_AUTORIZADO, 
                 "Apenas administradores podem adicionar candidatos");
@@ -266,7 +257,7 @@ public class ServidorVotacao {
     }
     
     private VotacaoReply processarRemoverCandidato(VotacaoRequest request, String sessionId) {
-        Eleitor eleitor = eleitoresLogados.get(sessionId);
+        Eleitor eleitor = obterEleitorPorRequest(request);
         if (eleitor == null || !eleitor.isAdmin()) {
             return new VotacaoReply(VotacaoReply.Status.NAO_AUTORIZADO, 
                 "Apenas administradores podem remover candidatos");
@@ -287,8 +278,8 @@ public class ServidorVotacao {
             "Candidato removido com sucesso: " + removido.getNome());
     }
     
-    private VotacaoReply processarObterResultados(String sessionId) {
-        Eleitor eleitor = eleitoresLogados.get(sessionId);
+    private VotacaoReply processarObterResultados(VotacaoRequest request) {
+        Eleitor eleitor = obterEleitorPorRequest(request);
         if (eleitor == null) {
             return new VotacaoReply(VotacaoReply.Status.NAO_AUTORIZADO, "É necessário fazer login primeiro");
         }
@@ -304,7 +295,7 @@ public class ServidorVotacao {
     }
     
     private VotacaoReply processarIniciarVotacao(VotacaoRequest request, String sessionId) {
-        Eleitor eleitor = eleitoresLogados.get(sessionId);
+        Eleitor eleitor = obterEleitorPorRequest(request);
         if (eleitor == null || !eleitor.isAdmin()) {
             return new VotacaoReply(VotacaoReply.Status.NAO_AUTORIZADO, 
                 "Apenas administradores podem iniciar a votação");
@@ -314,23 +305,12 @@ public class ServidorVotacao {
             return new VotacaoReply(VotacaoReply.Status.ERRO, "A votação já está em andamento");
         }
         
-        // Parse da duração (em minutos) - padrão 5 minutos
-        int duracaoMinutos = 5;
-        if (request.getDados() != null && !request.getDados().isEmpty()) {
-            try {
-                String duracao = request.getDados().replace("{", "").replace("}", "")
-                    .replace("\"", "").replace("duracaoMinutos:", "");
-                duracaoMinutos = Integer.parseInt(duracao.trim());
-            } catch (Exception e) {
-                // Usa padrão
-            }
-        }
+        int duracaoMinutos = VotacaoJsonSerializer.parseDuracaoJson(request.getDados());
         
         votacaoIniciada = true;
         votacaoEncerrada = false;
         prazoFinal = System.currentTimeMillis() + (duracaoMinutos * 60 * 1000L);
         
-        // Reset dos votos
         for (Candidato c : candidatos.values()) {
             c.setVotos(0);
         }
@@ -343,8 +323,8 @@ public class ServidorVotacao {
                 duracaoMinutos, new Date(prazoFinal).toString()));
     }
     
-    private VotacaoReply processarEncerrarVotacao(String sessionId) {
-        Eleitor eleitor = eleitoresLogados.get(sessionId);
+    private VotacaoReply processarEncerrarVotacao(VotacaoRequest request) {
+        Eleitor eleitor = obterEleitorPorRequest(request);
         if (eleitor == null || !eleitor.isAdmin()) {
             return new VotacaoReply(VotacaoReply.Status.NAO_AUTORIZADO, 
                 "Apenas administradores podem encerrar a votação");

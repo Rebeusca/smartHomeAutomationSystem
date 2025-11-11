@@ -4,9 +4,6 @@ import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Cliente multicast UDP para receber notas informativas dos administradores.
- */
 public class ClienteMulticastNotas implements Runnable {
     
     private static final String MULTICAST_GROUP = "230.0.0.1";
@@ -35,11 +32,9 @@ public class ClienteMulticastNotas implements Runnable {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 
-                // Deserializa a nota do JSON
                 String json = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
                 NotaInformativa nota = parseNotaFromJson(json);
                 
-                // Exibe a nota
                 exibirNota(nota);
                 
             } catch (IOException e) {
@@ -54,7 +49,6 @@ public class ClienteMulticastNotas implements Runnable {
         NotaInformativa nota = new NotaInformativa();
         
         try {
-            // Parse simples: {"titulo":"...","mensagem":"...","admin":"...","timestamp":...}
             json = json.replace("{", "").replace("}", "").trim();
             String[] campos = json.split(",");
             
@@ -78,14 +72,12 @@ public class ClienteMulticastNotas implements Runnable {
                             try {
                                 nota.setTimestamp(Long.parseLong(value));
                             } catch (NumberFormatException e) {
-                                // Ignora
                             }
                             break;
                     }
                 }
             }
         } catch (Exception e) {
-            // Se falhar, cria uma nota básica com o JSON
             nota.setTitulo("Nota Informativa");
             nota.setMensagem(json);
         }
@@ -109,7 +101,6 @@ public class ClienteMulticastNotas implements Runnable {
                 socket.leaveGroup(group);
                 socket.close();
             } catch (IOException e) {
-                // Ignora
             }
         }
     }
@@ -118,7 +109,6 @@ public class ClienteMulticastNotas implements Runnable {
         try {
             ClienteMulticastNotas cliente = new ClienteMulticastNotas();
             
-            // Adiciona shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(cliente::parar));
             
             cliente.run();

@@ -2,9 +2,6 @@ package smarthome.net.votacao;
 
 import java.io.Serializable;
 
-/**
- * Representa uma nota informativa enviada pelos administradores.
- */
 public class NotaInformativa implements Serializable {
     
     private String titulo;

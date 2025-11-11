@@ -60,17 +60,20 @@ public class DispositivoIoTOutputStream extends OutputStream {
 
     private void gravarDispositivo(DispositivoIoT disp) throws IOException {
         
-        // Atributo 1: ID (String)
+        // Atributo 1: TIPO (String) - Nome da classe para identificar o tipo
+        String tipo = disp.getClass().getSimpleName();
+        writeString(tipo);
+        
+        // Atributo 2: ID (String)
         writeString(disp.getId()); 
         
-        // Atributo 2: NOME (String)
+        // Atributo 3: NOME (String)
         writeString(disp.getNome()); 
         
-        // Atributo 3: ONLINE (boolean) - 1 byte
-        // CORRIGIDO: Utiliza getOnline() conforme a sua classe DispositivoIoT.java
+        // Atributo 4: ONLINE (boolean) - 1 byte
         destino.write(disp.getOnline() ? 1 : 0); 
         
-        // Atributo 4: CÔMODO (String)
+        // Atributo 5: CÔMODO (String)
         writeString(disp.getComodo());
     }
     

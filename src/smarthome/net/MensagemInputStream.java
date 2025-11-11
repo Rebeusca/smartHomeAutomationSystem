@@ -59,7 +59,6 @@ public class MensagemInputStream extends InputStream {
      * Desempacota e lê uma MensagemReply
      */
     public MensagemReply lerReply() throws IOException {
-        // Lê o tipo (deve ser 2 = Reply)
         int tipo = origem.read();
         if (tipo != 2) {
             throw new IOException("Tipo de mensagem inválido. Esperado Reply (2), recebido: " + tipo);

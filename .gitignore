@@ -1,0 +1,14 @@
+/out/
+/bin/
+/build/
+/dist/
+/target/
+/tmp/
+/logs/
+/reports/
+/screenshots/
+/test-output/
+/test-results/
+/test-reports/
+/test-results/
+.bat

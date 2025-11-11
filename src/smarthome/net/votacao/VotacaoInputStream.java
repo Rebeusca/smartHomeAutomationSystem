@@ -5,9 +5,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Stream para desempacotar mensagens de votação recebidas via TCP.
- */
 public class VotacaoInputStream extends InputStream {
     
     private final InputStream origem;
@@ -21,11 +18,7 @@ public class VotacaoInputStream extends InputStream {
         return origem.read();
     }
     
-    /**
-     * Desempacota e lê uma VotacaoRequest
-     */
     public VotacaoRequest lerRequest() throws IOException {
-        // Lê o tipo (deve ser 1 = Request)
         int tipo = origem.read();
         if (tipo != 1) {
             throw new IOException("Tipo de mensagem inválido. Esperado Request (1), recebido: " + tipo);
@@ -33,11 +26,9 @@ public class VotacaoInputStream extends InputStream {
         
         VotacaoRequest request = new VotacaoRequest();
         
-        // Lê código da operação
         int codigoOperacao = readInt();
         request.setTipoOperacao(VotacaoRequest.TipoOperacao.fromCodigo(codigoOperacao));
         
-        // Lê dados (JSON)
         String dados = readString();
         if (!dados.isEmpty()) {
             request.setDados(dados);
@@ -46,11 +37,7 @@ public class VotacaoInputStream extends InputStream {
         return request;
     }
     
-    /**
-     * Desempacota e lê uma VotacaoReply
-     */
     public VotacaoReply lerReply() throws IOException {
-        // Lê o tipo (deve ser 2 = Reply)
         int tipo = origem.read();
         if (tipo != 2) {
             throw new IOException("Tipo de mensagem inválido. Esperado Reply (2), recebido: " + tipo);
@@ -58,17 +45,14 @@ public class VotacaoInputStream extends InputStream {
         
         VotacaoReply reply = new VotacaoReply();
         
-        // Lê código do status
         int codigoStatus = readInt();
         reply.setStatus(VotacaoReply.Status.fromCodigo(codigoStatus));
         
-        // Lê mensagem
         String mensagem = readString();
         if (!mensagem.isEmpty()) {
             reply.setMensagem(mensagem);
         }
         
-        // Lê dados (JSON)
         String dados = readString();
         if (!dados.isEmpty()) {
             reply.setDados(dados);

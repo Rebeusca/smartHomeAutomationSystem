@@ -7,9 +7,6 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Scanner;
 
-/**
- * Cliente para administradores gerenciarem o sistema de votação.
- */
 public class ClienteAdmin {
     
     private final String host;
@@ -39,16 +36,18 @@ public class ClienteAdmin {
                 socket.close();
             }
         } catch (IOException e) {
-            // Ignora
         }
     }
     
     private VotacaoReply enviarRequest(VotacaoRequest request) throws IOException {
-        if (socket == null || socket.isClosed()) {
+        try {
             conectar();
+            out.escreverRequest(request);
+            VotacaoReply reply = in.lerReply();
+            return reply;
+        } finally {
+            desconectar();
         }
-        out.escreverRequest(request);
-        return in.lerReply();
     }
     
     public boolean login(String username, String senha) throws IOException {
@@ -72,7 +71,7 @@ public class ClienteAdmin {
             throw new IllegalStateException("É necessário fazer login primeiro");
         }
         
-        String dados = String.format("{\"duracaoMinutos\":%d}", duracaoMinutos);
+        String dados = String.format("{\"username\":\"%s\",\"duracaoMinutos\":%d}", username, duracaoMinutos);
         VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.INICIAR_VOTACAO, dados);
         VotacaoReply reply = enviarRequest(request);
         
@@ -90,13 +89,13 @@ public class ClienteAdmin {
             throw new IllegalStateException("É necessário fazer login primeiro");
         }
         
-        VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.ENCERRAR_VOTACAO);
+        String dados = String.format("{\"username\":\"%s\"}", username);
+        VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.ENCERRAR_VOTACAO, dados);
         VotacaoReply reply = enviarRequest(request);
         
         if (reply.getStatus() == VotacaoReply.Status.SUCESSO) {
             System.out.println("[OK] " + reply.getMensagem());
             
-            // Exibe resultados
             if (reply.getDados() != null && !reply.getDados().isEmpty()) {
                 ResultadoVotacao resultado = parseResultado(reply.getDados());
                 System.out.println("\n" + resultado.toString());
@@ -113,7 +112,7 @@ public class ClienteAdmin {
             throw new IllegalStateException("É necessário fazer login primeiro");
         }
         
-        String dados = String.format("{\"id\":\"%s\",\"nome\":\"%s\"}", id, nome);
+        String dados = String.format("{\"username\":\"%s\",\"id\":\"%s\",\"nome\":\"%s\"}", username, id, nome);
         VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.ADICIONAR_CANDIDATO, dados);
         VotacaoReply reply = enviarRequest(request);
         
@@ -131,7 +130,7 @@ public class ClienteAdmin {
             throw new IllegalStateException("É necessário fazer login primeiro");
         }
         
-        String dados = String.format("{\"candidatoId\":\"%s\"}", id);
+        String dados = String.format("{\"username\":\"%s\",\"candidatoId\":\"%s\"}", username, id);
         VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.REMOVER_CANDIDATO, dados);
         VotacaoReply reply = enviarRequest(request);
         
@@ -149,7 +148,8 @@ public class ClienteAdmin {
             throw new IllegalStateException("É necessário fazer login primeiro");
         }
         
-        VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.OBTER_RESULTADOS);
+        String dados = String.format("{\"username\":\"%s\"}", username);
+        VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.OBTER_RESULTADOS, dados);
         VotacaoReply reply = enviarRequest(request);
         
         if (reply.getStatus() == VotacaoReply.Status.SUCESSO) {
@@ -180,7 +180,6 @@ public class ClienteAdmin {
             System.out.println("=== Cliente Administrador ===");
             System.out.println("Conectando ao servidor...\n");
             
-            // Login
             System.out.print("Username: ");
             String username = scanner.nextLine();
             System.out.print("Senha: ");
@@ -191,7 +190,6 @@ public class ClienteAdmin {
                 return;
             }
             
-            // Menu de opções
             boolean continuar = true;
             while (continuar) {
                 System.out.println("\n--- Menu Administrador ---");
@@ -205,7 +203,7 @@ public class ClienteAdmin {
                 System.out.print("Escolha uma opção: ");
                 
                 int opcao = scanner.nextInt();
-                scanner.nextLine(); // consume newline
+                scanner.nextLine();
                 
                 switch (opcao) {
                     case 1:

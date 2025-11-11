@@ -6,10 +6,6 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Servidor multicast UDP para envio de notas informativas.
- * Os administradores enviam notas que são distribuídas via multicast.
- */
 public class ServidorMulticastNotas {
     
     private static final String MULTICAST_GROUP = "230.0.0.1";
@@ -23,11 +19,7 @@ public class ServidorMulticastNotas {
         this.group = InetAddress.getByName(MULTICAST_GROUP);
     }
     
-    /**
-     * Envia uma nota informativa via multicast.
-     */
     public void enviarNota(NotaInformativa nota) throws IOException {
-        // Serializa a nota para JSON (usando formato simples)
         String json = String.format("{\"titulo\":\"%s\",\"mensagem\":\"%s\",\"admin\":\"%s\",\"timestamp\":%d}",
             escapeJson(nota.getTitulo()),
             escapeJson(nota.getMensagem()),
@@ -36,7 +28,6 @@ public class ServidorMulticastNotas {
         
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         
-        // Envia via multicast
         DatagramPacket packet = new DatagramPacket(bytes, bytes.length, group, MULTICAST_PORT);
         socket.send(packet);
         
@@ -57,9 +48,6 @@ public class ServidorMulticastNotas {
         }
     }
     
-    /**
-     * Método estático para facilitar o envio de notas.
-     */
     public static void enviarNotaInformativa(String titulo, String mensagem, String admin) {
         try {
             ServidorMulticastNotas servidor = new ServidorMulticastNotas();

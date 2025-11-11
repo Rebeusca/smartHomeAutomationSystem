@@ -2,9 +2,6 @@ package smarthome.net.votacao;
 
 import java.io.Serializable;
 
-/**
- * Representa um eleitor no sistema de votação.
- */
 public class Eleitor implements Serializable {
     
     private String username;

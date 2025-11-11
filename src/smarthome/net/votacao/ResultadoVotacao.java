@@ -4,9 +4,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Representa o resultado de uma votação.
- */
 public class ResultadoVotacao implements Serializable {
     
     private int totalVotos;
@@ -61,9 +58,6 @@ public class ResultadoVotacao implements Serializable {
         return sb.toString();
     }
     
-    /**
-     * Classe interna para representar o resultado de um candidato específico.
-     */
     public static class ResultadoCandidato implements Serializable {
         private Candidato candidato;
         private int votos;

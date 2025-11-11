@@ -7,9 +7,6 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Scanner;
 
-/**
- * Cliente para eleitores votarem no sistema.
- */
 public class ClienteEleitor {
     
     private final String host;
@@ -18,6 +15,7 @@ public class ClienteEleitor {
     private VotacaoInputStream in;
     private VotacaoOutputStream out;
     private String sessionId;
+    private String username;
     private boolean logado = false;
     
     public ClienteEleitor(String host, int porta) {
@@ -38,19 +36,22 @@ public class ClienteEleitor {
                 socket.close();
             }
         } catch (IOException e) {
-            // Ignora
         }
     }
     
     private VotacaoReply enviarRequest(VotacaoRequest request) throws IOException {
-        if (socket == null || socket.isClosed()) {
+        try {
             conectar();
+            out.escreverRequest(request);
+            VotacaoReply reply = in.lerReply();
+            return reply;
+        } finally {
+            desconectar();
         }
-        out.escreverRequest(request);
-        return in.lerReply();
     }
     
     public boolean login(String username, String senha) throws IOException {
+        this.username = username;
         String dados = String.format("{\"username\":\"%s\",\"senha\":\"%s\"}", username, senha);
         VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.LOGIN, dados);
         VotacaoReply reply = enviarRequest(request);
@@ -70,7 +71,8 @@ public class ClienteEleitor {
             throw new IllegalStateException("É necessário fazer login primeiro");
         }
         
-        VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.LISTAR_CANDIDATOS);
+        String dados = String.format("{\"username\":\"%s\"}", username);
+        VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.LISTAR_CANDIDATOS, dados);
         VotacaoReply reply = enviarRequest(request);
         
         if (reply.getStatus() == VotacaoReply.Status.SUCESSO) {
@@ -85,7 +87,7 @@ public class ClienteEleitor {
             throw new IllegalStateException("É necessário fazer login primeiro");
         }
         
-        String dados = String.format("{\"candidatoId\":\"%s\"}", candidatoId);
+        String dados = String.format("{\"username\":\"%s\",\"candidatoId\":\"%s\"}", username, candidatoId);
         VotacaoRequest request = new VotacaoRequest(VotacaoRequest.TipoOperacao.VOTAR, dados);
         VotacaoReply reply = enviarRequest(request);
         
@@ -110,7 +112,6 @@ public class ClienteEleitor {
             System.out.println("=== Cliente Eleitor ===");
             System.out.println("Conectando ao servidor...\n");
             
-            // Login
             System.out.print("Username: ");
             String username = scanner.nextLine();
             System.out.print("Senha: ");
@@ -121,7 +122,6 @@ public class ClienteEleitor {
                 return;
             }
             
-            // Lista candidatos e vota
             System.out.println("\n--- Lista de Candidatos ---");
             List<Candidato> candidatos = cliente.listarCandidatos();
             
