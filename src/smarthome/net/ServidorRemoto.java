@@ -1,224 +1,136 @@
 package smarthome.net;
 
+import smarthome.interfaces.ISmartHomeService;
+import smarthome.services.SmartHomeServiceImpl;
 import smarthome.pojos.DispositivoIoT;
-import smarthome.pojos.Lampada;
-import smarthome.pojos.Sensor;
-import smarthome.pojos.Termostato;
+import smarthome.pojos.Rotina;
+import smarthome.pojos.Alerta;
+import smarthome.pojos.Comodo;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.net.InetAddress;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Servidor remoto que processa requisições de clientes.
- * 
- * Operações suportadas:
- * - LISTAR_DISPOSITIVOS: Retorna todos os dispositivos
- * - OBTER_DISPOSITIVO: Retorna um dispositivo específico por ID
- * - ATUALIZAR_DISPOSITIVO: Atualiza um dispositivo
- * - EXECUTAR_ACAO: Executa uma ação em um dispositivo
+ * Servidor remoto que processa requisições de clientes usando Invocação Remota.
+ * Utiliza getRequest e sendReply para receber requisições e enviar respostas.
  */
 public class ServidorRemoto {
     
     private static final int PORTA = 54321;
-    private Map<String, DispositivoIoT> dispositivos; // Banco de dados em memória
+    private ServerRequestHandler requestHandler;
+    private ISmartHomeService smartHomeService;
     
-    public ServidorRemoto() {
-        this.dispositivos = new HashMap<>();
-        inicializarDispositivos();
-    }
-    
-    private void inicializarDispositivos() {
-        // Cria alguns dispositivos de exemplo
-        Lampada l1 = new Lampada("Luz Sala", "Sala", true, true, 80, 3000);
-        Termostato t1 = new Termostato("Ar Condicionado", "Quarto", true, 24.0, 22.0);
-        Sensor s1 = new Sensor("Sensor Movimento", "Corredor", true, "Movimento", false, 0.0);
-        
-        dispositivos.put(l1.getId(), l1);
-        dispositivos.put(t1.getId(), t1);
-        dispositivos.put(s1.getId(), s1);
+    public ServidorRemoto() throws IOException {
+        this.requestHandler = new ServerRequestHandler(PORTA);
+        this.smartHomeService = new SmartHomeServiceImpl();
     }
     
     public void iniciar() {
-        System.out.println("=== Servidor Remoto Smart Home ===");
+        System.out.println("=== Servidor Remoto Smart Home (Invocação Remota) ===");
         System.out.println("Servidor iniciado na porta " + PORTA);
-        System.out.println("Aguardando conexões de clientes...");
+        System.out.println("Aguardando requisições de clientes...\n");
         
-        try (ServerSocket serverSocket = new ServerSocket(PORTA)) {
-            
+        try {
             while (true) {
-                Socket clientSocket = serverSocket.accept();
-                System.out.println("\n[CONEXÃO] Cliente conectado: " + clientSocket.getRemoteSocketAddress());
+                // Obtém requisição usando getRequest
+                Object[] requestData = requestHandler.getRequest();
                 
-                // Processa cada cliente em uma thread separada (ou sequencialmente)
-                processarCliente(clientSocket);
+                @SuppressWarnings("unused")
+                RemoteObjectRef remoteRef = (RemoteObjectRef) requestData[0];
+                int methodId = (Integer) requestData[1];
+                byte[] arguments = (byte[]) requestData[2];
+                InetAddress clientHost = (InetAddress) requestData[3];
+                int clientPort = (Integer) requestData[4];
+                
+                System.out.println("[SERVIDOR] Processando requisição: methodId=" + methodId);
+                
+                // Processa a requisição
+                byte[] reply = processarRequest(methodId, arguments);
+                
+                // Envia resposta usando sendReply
+                requestHandler.sendReply(reply, clientHost, clientPort);
+                System.out.println("[SERVIDOR] Requisição processada com sucesso\n");
             }
-            
         } catch (IOException e) {
             System.err.println("[ERRO] Falha no servidor: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            requestHandler.close();
         }
     }
     
-    private void processarCliente(Socket clientSocket) {
-        try (InputStream is = clientSocket.getInputStream();
-             OutputStream os = clientSocket.getOutputStream();
-             MensagemInputStream in = new MensagemInputStream(is);
-             MensagemOutputStream out = new MensagemOutputStream(os)) {
-            
-            // Desempacota a mensagem de requisição
-            MensagemRequest request = in.lerRequest();
-            System.out.println("[REQUEST] " + request);
-            
-            // Processa a requisição
-            MensagemReply reply = processarRequest(request);
-            System.out.println("[REPLY] " + reply);
-            
-            // Empacota e envia a resposta
-            out.escreverReply(reply);
-            System.out.println("[OK] Resposta enviada ao cliente");
-            
-        } catch (IOException e) {
-            System.err.println("[ERRO] Falha ao processar cliente: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    
-    private MensagemReply processarRequest(MensagemRequest request) {
-        MensagemReply reply = new MensagemReply();
-        
+    /**
+     * Processa uma requisição baseada no methodId e argumentos.
+     * Retorna a resposta serializada.
+     */
+    private byte[] processarRequest(int methodId, byte[] arguments) throws IOException {
         try {
-            switch (request.getTipoOperacao()) {
-                case LISTAR_DISPOSITIVOS:
-                    reply = processarListarDispositivos();
+            Object result = null;
+            
+            switch (methodId) {
+                case ISmartHomeService.METHOD_LISTAR_DISPOSITIVOS:
+                    result = smartHomeService.listarDispositivos();
                     break;
                     
-                case OBTER_DISPOSITIVO:
-                    reply = processarObterDispositivo(request.getDispositivoId());
+                case ISmartHomeService.METHOD_OBTER_DISPOSITIVO:
+                    String dispositivoId = (String) MessageMarshaller.deserialize(arguments);
+                    result = smartHomeService.obterDispositivo(dispositivoId);
                     break;
                     
-                case ATUALIZAR_DISPOSITIVO:
-                    reply = processarAtualizarDispositivo(request.getDispositivoId(), request.getDados());
+                case ISmartHomeService.METHOD_ATUALIZAR_DISPOSITIVO:
+                    Object[] updateArgs = (Object[]) MessageMarshaller.deserialize(arguments);
+                    String id = (String) updateArgs[0];
+                    DispositivoIoT dispositivo = (DispositivoIoT) updateArgs[1];
+                    result = smartHomeService.atualizarDispositivo(id, dispositivo);
                     break;
                     
-                case EXECUTAR_ACAO:
-                    reply = processarExecutarAcao(request.getDispositivoId(), request.getDados());
+                case ISmartHomeService.METHOD_EXECUTAR_ACAO:
+                    Object[] actionArgs = (Object[]) MessageMarshaller.deserialize(arguments);
+                    String deviceId = (String) actionArgs[0];
+                    String comando = (String) actionArgs[1];
+                    result = smartHomeService.executarAcao(deviceId, comando);
+                    break;
+                    
+                case ISmartHomeService.METHOD_LISTAR_ROTINAS:
+                    result = smartHomeService.listarRotinas();
+                    break;
+                    
+                case ISmartHomeService.METHOD_CRIAR_ROTINA:
+                    Rotina rotina = (Rotina) MessageMarshaller.deserialize(arguments);
+                    result = smartHomeService.criarRotina(rotina);
+                    break;
+                    
+                case ISmartHomeService.METHOD_LISTAR_ALERTAS:
+                    result = smartHomeService.listarAlertas();
+                    break;
+                    
+                case ISmartHomeService.METHOD_OBTER_COMODO:
+                    String nomeComodo = (String) MessageMarshaller.deserialize(arguments);
+                    result = smartHomeService.obterComodo(nomeComodo);
                     break;
                     
                 default:
-                    reply.setStatus(MensagemReply.Status.ERRO);
-                    reply.setMensagem("Operação não suportada: " + request.getTipoOperacao());
+                    throw new IllegalArgumentException("Método não suportado: " + methodId);
             }
+            
+            // Serializa resultado (passagem por valor)
+            return MessageMarshaller.serialize(result);
+            
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Erro ao deserializar argumentos", e);
         } catch (Exception e) {
-            reply.setStatus(MensagemReply.Status.ERRO);
-            reply.setMensagem("Erro ao processar requisição: " + e.getMessage());
-            e.printStackTrace();
+            throw new IOException("Erro ao processar requisição: " + e.getMessage(), e);
         }
-        
-        return reply;
-    }
-    
-    private MensagemReply processarListarDispositivos() {
-        MensagemReply reply = new MensagemReply();
-        reply.setStatus(MensagemReply.Status.SUCESSO);
-        reply.setMensagem("Lista de dispositivos obtida com sucesso");
-        
-        List<DispositivoIoT> lista = new ArrayList<>(dispositivos.values());
-        reply.setDispositivos(lista.toArray(new DispositivoIoT[0]));
-        
-        return reply;
-    }
-    
-    private MensagemReply processarObterDispositivo(String dispositivoId) {
-        MensagemReply reply = new MensagemReply();
-        
-        if (dispositivoId == null || dispositivoId.isEmpty()) {
-            reply.setStatus(MensagemReply.Status.ERRO);
-            reply.setMensagem("ID do dispositivo não fornecido");
-            return reply;
-        }
-        
-        DispositivoIoT dispositivo = dispositivos.get(dispositivoId);
-        
-        if (dispositivo == null) {
-            reply.setStatus(MensagemReply.Status.DISPOSITIVO_NAO_ENCONTRADO);
-            reply.setMensagem("Dispositivo não encontrado: " + dispositivoId);
-        } else {
-            reply.setStatus(MensagemReply.Status.SUCESSO);
-            reply.setMensagem("Dispositivo obtido com sucesso");
-            reply.setDispositivo(dispositivo);
-        }
-        
-        return reply;
-    }
-    
-    private MensagemReply processarAtualizarDispositivo(String dispositivoId, String dados) {
-        MensagemReply reply = new MensagemReply();
-        
-        if (dispositivoId == null || dispositivoId.isEmpty()) {
-            reply.setStatus(MensagemReply.Status.ERRO);
-            reply.setMensagem("ID do dispositivo não fornecido");
-            return reply;
-        }
-        
-        DispositivoIoT dispositivo = dispositivos.get(dispositivoId);
-        
-        if (dispositivo == null) {
-            reply.setStatus(MensagemReply.Status.DISPOSITIVO_NAO_ENCONTRADO);
-            reply.setMensagem("Dispositivo não encontrado: " + dispositivoId);
-            return reply;
-        }
-        
-        // Simula atualização (em um caso real, processaria os dados)
-        if (dados != null && dados.contains("online=true")) {
-            dispositivo.setOnline(true);
-        } else if (dados != null && dados.contains("online=false")) {
-            dispositivo.setOnline(false);
-        }
-        
-        dispositivos.put(dispositivoId, dispositivo);
-        
-        reply.setStatus(MensagemReply.Status.SUCESSO);
-        reply.setMensagem("Dispositivo atualizado com sucesso");
-        reply.setDispositivo(dispositivo);
-        
-        return reply;
-    }
-    
-    private MensagemReply processarExecutarAcao(String dispositivoId, String dados) {
-        MensagemReply reply = new MensagemReply();
-        
-        if (dispositivoId == null || dispositivoId.isEmpty()) {
-            reply.setStatus(MensagemReply.Status.ERRO);
-            reply.setMensagem("ID do dispositivo não fornecido");
-            return reply;
-        }
-        
-        DispositivoIoT dispositivo = dispositivos.get(dispositivoId);
-        
-        if (dispositivo == null) {
-            reply.setStatus(MensagemReply.Status.DISPOSITIVO_NAO_ENCONTRADO);
-            reply.setMensagem("Dispositivo não encontrado: " + dispositivoId);
-            return reply;
-        }
-        
-        // Simula execução de ação
-        reply.setStatus(MensagemReply.Status.SUCESSO);
-        reply.setMensagem("Ação executada com sucesso no dispositivo: " + dispositivoId);
-        reply.setDispositivo(dispositivo);
-        
-        return reply;
     }
     
     public static void main(String[] args) {
-        ServidorRemoto servidor = new ServidorRemoto();
-        servidor.iniciar();
+        try {
+            ServidorRemoto servidor = new ServidorRemoto();
+            servidor.iniciar();
+        } catch (IOException e) {
+            System.err.println("[ERRO] Falha ao iniciar servidor: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }
-
